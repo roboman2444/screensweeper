@@ -14,6 +14,8 @@
 #define FALSE 0
 
 
+#define USEQUEUE
+
 
 int fb_fd = 9;
 struct fb_fix_screeninfo finfo;
@@ -174,6 +176,42 @@ inline int countUntested(int xpos, int ypos){
 	}
 	return count;
 }
+typedef struct expqueue_s {
+	int x;
+	int y;
+} expqueue_t;
+
+expqueue_t *theq = 0;
+size_t theqs =0;
+size_t theqp =0;
+
+void addtoq(int x, int y){
+	if(theqp >= theqs){
+		theqs = theqp + 32;
+		theq = realloc(theq, theqs* sizeof(expqueue_t));
+	}
+	theq[theqp].x = x;
+	theq[theqp].y = y;
+	theqp++;
+}
+
+void shuffleq(void){
+	size_t ms;
+	for(ms = theqp-1; ms >= 0; ms--){
+		int p = rand() % ms;
+		expqueue_t t = theq[ms];
+		theq[ms] = theq[p];
+		theq[p] = t;
+	}
+}
+void doq(void){
+	size_t i;
+	for(i = 0; i < theqp; i++){
+		expandGrid(theq[i].x, theq[i].y);
+	}
+	theqp = 0;
+}
+
 //shitty shitty solve, can optimizzle
 int solve(void){
 	int x, y;
@@ -198,7 +236,11 @@ int solve(void){
 					uint8_t *Foffp = donep + x + (y + yj) * width;
 					for(xj = xorg; xj < xm; xj++){
 						if(xj == 0 && yj == 0) continue;
+#ifdef USEQUEUE
+						else if(!Foffp[xj]) addtoq(x + xj, y + yj);
+#else
 						else if(!Foffp[xj]) expandGrid(x + xj, y + yj);
+#endif
 					}
 				}
 			} else if (num == countUntested(x, y) + fl){
@@ -223,6 +265,9 @@ int solve(void){
 			}
 		}
 	}
+	#ifdef USEQUEUE
+	doq();
+	#endif
 	return numtested;
 }
 
@@ -271,7 +316,7 @@ int main(int argc, char ** argv){
 		memcpy(fbp, fb_copy, screensize);
 
 		expandGrid(width/2, height/2);
-		while(solve()) usleep(100000);
+		while(solve()); usleep(100000);
 		sleep(1);
 	}
 	return FALSE;
