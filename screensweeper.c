@@ -15,6 +15,45 @@
 
 
 #define USEQUEUE
+#define USEGRID
+//grid
+//runs
+//movbox
+
+#define GRIDX 8
+#define GRIDY 8
+char *thegrid;
+int gridwidth = 0;
+int gridheight = 0;
+
+
+void markgrid(int x, int y){
+	int gpy = y/GRIDY;
+	int gpx = x/GRIDX;
+	thegrid[gpy * gridwidth + gpx] = 1;
+	if(!(y%GRIDY) && gpy >1){
+		int ngpy = gpy-1;
+		thegrid[ngpy * gridwidth + gpx] = 1;
+		if(!(x%GRIDX) && gpx >1){
+			int ngpx = gpx-1;
+			thegrid[ngpy * gridwidth + ngpx] = 1;
+		} else if (x%GRIDX >= GRIDX-1 && gpx <gridwidth-1){
+			int ngpx = gpx+1;
+			thegrid[ngpy * gridwidth + ngpx] = 1;
+		}
+	} else if (y%GRIDY >= GRIDY-1 && gpy <gridheight-1){
+		int ngpy = gpy+1;
+		thegrid[ngpy * gridwidth + gpx] = 1;
+		if(!(x%GRIDX) && gpx >1){
+			int ngpx = gpx-1;
+			thegrid[ngpy * gridwidth + ngpx] = 1;
+		} else if (x%GRIDX >= GRIDX-1 && gpx <gridwidth-1){
+			int ngpx = gpx+1;
+			thegrid[ngpy * gridwidth + ngpx] = 1;
+		}
+	}
+}
+
 
 
 int fb_fd = 9;
@@ -79,6 +118,9 @@ inline void mark(int x, int y){
 	uint8_t *soffp = showp + y * width;
 	long location = (x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (y + vinfo.yoffset) * finfo.line_length;
 	*((uint32_t*)(fbp + location)) = pixel_color(offp[x] * 255, soffp[x] * 25, 0, &vinfo);
+	#ifdef USEGRID
+		markgrid(x,y);
+	#endif
 //	usleep(10);
 }
 
@@ -216,11 +258,28 @@ void doq(void){
 int solve(void){
 	int x, y;
 	int numtested = 0;
+	#ifdef USEGRID
+	int gx,gy, mx, my;
+	for(gy = 0; gy < gridheight; gy++){
+		my = (gy+1) *GRIDY;
+		if(my > height) my= height;
+	for(gx = 0; gx < gridwidth; gx++){
+		if(!thegrid[gy *gridwidth +gx]) continue;
+		thegrid[gy * gridwidth + gx] = 0;
+		mx = (gx+1) *GRIDX;
+		if(mx > width) mx= width;
+	for(y = gy * GRIDY; y < my; y++){
+		uint8_t *offp = gridp + y * width;
+		uint8_t *soffp = showp + y * width;
+		uint8_t *doffp = donep + y * width;
+		for(x = gx * GRIDX; x < mx; x++){
+	#else
 	for(y = 0; y < height; y++){
 		uint8_t *offp = gridp + y * width;
 		uint8_t *soffp = showp + y * width;
 		uint8_t *doffp = donep + y * width;
 		for(x = 0; x < width; x++){
+	#endif
 			if(!soffp[x] || doffp[x]) continue;
 			int num = offp[x];
 			int fl = countFlagged(x,y);
@@ -265,6 +324,9 @@ int solve(void){
 			}
 		}
 	}
+	#ifdef USEGRID
+	}}
+	#endif
 	#ifdef USEQUEUE
 	doq();
 	#endif
@@ -295,8 +357,17 @@ int main(int argc, char ** argv){
 		showp = malloc(width * height);
 		donep = malloc(width * height);
 
+		#ifdef USEGRID
+			gridwidth = (width / GRIDX) + !!(width%GRIDX);
+			gridheight = (height / GRIDY) + !!(height%GRIDY);
+			thegrid = malloc(gridwidth * gridheight);
+		#endif
+
 
 	while(TRUE){
+		#ifdef USEGRID
+		memset(thegrid, 0, gridwidth * gridheight);
+		#endif
 		memset(gridp, 0, width * height);
 		memset(showp, 0, width * height);
 		memset(donep, 0, width * height);
@@ -316,8 +387,9 @@ int main(int argc, char ** argv){
 		memcpy(fbp, fb_copy, screensize);
 
 		expandGrid(width/2, height/2);
-		while(solve()); usleep(100000);
-		sleep(1);
+		while(solve());
+			//usleep(100000);
+//		sleep(1);
 	}
 	return FALSE;
 }
